@@ -11,15 +11,15 @@ export async function POST(request: Request) {
     let text = '';
 
     const contentType = request.headers.get('content-type') || '';
-    
-    if (contentType.includes('multipart/form-data')) {
+
+    if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
-      subject = formData.get('subject') as string || subject;
-      text = formData.get('text') as string || formData.get('body') as string || '';
+      subject = (formData.get('subject') as string) || '';
+      text = (formData.get('text') as string) || '';
     } else {
-      const body = await request.json();
-      subject = body.subject || subject;
-      text = body.text || body.body || '';
+      const payload = await request.json();
+      subject = payload.subject || '';
+      text = payload.text || '';
     }
 
     if (!text) {
@@ -40,8 +40,8 @@ export async function POST(request: Request) {
     // or a dedicated "Logs" sheet.
 
     return NextResponse.json({ success: true, parsedData });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Webhook error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error', details: error.message || String(error) }, { status: 500 });
   }
 }
