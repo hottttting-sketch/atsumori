@@ -13,6 +13,7 @@ export async function POST(request: Request) {
     
     let subject = 'No Subject';
     let text = '';
+    let file: File | undefined = undefined;
 
     const contentType = request.headers.get('content-type') || '';
 
@@ -20,6 +21,11 @@ export async function POST(request: Request) {
       const formData = await request.formData();
       subject = (formData.get('subject') as string) || '';
       text = (formData.get('text') as string) || '';
+      
+      const fileEntry = formData.get('file');
+      if (fileEntry && typeof fileEntry === 'object' && 'arrayBuffer' in fileEntry) {
+        file = fileEntry as File;
+      }
     } else {
       const payload = await request.json();
       subject = payload.subject || '';
@@ -30,8 +36,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No email body found' }, { status: 400 });
     }
 
-    // 1. AIによるメール解析
-    const parsedData = await parseEmailContent(subject, text);
+    // 1. AIによるメール解析（添付ファイル対応）
+    const parsedData = await parseEmailContent(subject, text, file);
     
     if (!parsedData || !parsedData.targetSheet || !parsedData.data) {
       throw new Error('AI returned invalid format');

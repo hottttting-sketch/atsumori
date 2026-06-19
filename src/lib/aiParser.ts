@@ -1,4 +1,6 @@
-export async function parseEmailContent(subject: string, body: string) {
+import * as xlsx from 'xlsx';
+
+export async function parseEmailContent(subject: string, body: string, file?: File) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY is not configured in environment variables');
@@ -12,6 +14,7 @@ If it's an estimate related to Dentsu, choose "電通見積". For Hakuhodo, choo
 
 Email Subject: ${subject}
 Email Body: ${body}
+{ATTACHMENT_TEXT_PLACEHOLDER}
 
 Return a JSON object with the following schema:
 {
@@ -43,6 +46,61 @@ Return a JSON object with the following schema:
 If a field is not found in the email, leave it as an empty string "".
   `;
 
+  let attachmentText = '';
+  let inlineData: any = null;
+
+  if (file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const mimeType = file.type;
+    const fileName = file.name || '';
+
+    // Excel or CSV handling
+    if (
+      mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      mimeType === 'application/vnd.ms-excel' ||
+      mimeType === 'text/csv' ||
+      fileName.endsWith('.xlsx') ||
+      fileName.endsWith('.csv')
+    ) {
+      try {
+        const workbook = xlsx.read(buffer, { type: 'buffer' });
+        workbook.SheetNames.forEach(sheetName => {
+          const csv = xlsx.utils.sheet_to_csv(workbook.Sheets[sheetName]);
+          attachmentText += `\n--- Sheet: ${sheetName} ---\n${csv}\n`;
+        });
+      } catch (err) {
+        console.error('Failed to parse Excel/CSV:', err);
+      }
+    } else if (
+      mimeType === 'application/pdf' ||
+      mimeType.startsWith('image/')
+    ) {
+      // PDF or Image handling for Gemini inlineData
+      inlineData = {
+        mimeType: mimeType || 'application/pdf',
+        data: buffer.toString('base64')
+      };
+    } else {
+      // Try to read as plain text
+      try {
+        const textContent = buffer.toString('utf-8');
+        if (textContent && textContent.length < 50000) { // arbitrary limit to prevent blowing up the prompt
+          attachmentText += `\n--- Text Attachment: ${fileName} ---\n${textContent}\n`;
+        }
+      } catch (e) {
+        // Ignore
+      }
+    }
+  }
+
+  const finalPrompt = prompt.replace('{ATTACHMENT_TEXT_PLACEHOLDER}', attachmentText ? `\nAttachment Content:\n${attachmentText}` : '');
+
+  const parts: any[] = [{ text: finalPrompt }];
+  if (inlineData) {
+    parts.push({ inlineData });
+  }
+
   // We use fetch instead of the SDK to avoid SDK parsing bugs with certain valid API keys.
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
@@ -55,7 +113,7 @@ If a field is not found in the email, leave it as an empty string "".
       body: JSON.stringify({
         contents: [
           {
-            parts: [{ text: prompt }]
+            parts: parts
           }
         ],
         generationConfig: {
