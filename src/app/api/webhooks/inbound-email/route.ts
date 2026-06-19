@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { parseEmailContent } from '@/lib/aiParser';
 import { appendSheetData } from '@/lib/googleSheets';
 
+function getJstDate() {
+  return new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+}
+
 export async function POST(request: Request) {
   try {
     // Depending on the email webhook provider (SendGrid, Postmark, etc.),
@@ -36,12 +40,33 @@ export async function POST(request: Request) {
     // 2. Googleスプレッドシートへの反映
     await appendSheetData(parsedData.targetSheet, parsedData.data);
 
-    // Note: To show logs in the UI, we would typically save this result to a Database 
-    // or a dedicated "Logs" sheet.
+    // 3. 受信ログへの記録（成功）
+    await appendSheetData('受信ログ', {
+      '受信日時': getJstDate(),
+      '件名': subject,
+      '解析ステータス': '完了',
+      '反映先': parsedData.targetSheet,
+      'エラー内容': '-'
+    });
 
     return NextResponse.json({ success: true, parsedData });
   } catch (error: any) {
     console.error('Webhook error:', error);
+    
+    // エラー時の受信ログへの記録（失敗）
+    // ※ subjectが取得できていないケースも考慮
+    try {
+      await appendSheetData('受信ログ', {
+        '受信日時': getJstDate(),
+        '件名': 'エラー発生時の件名不明',
+        '解析ステータス': 'エラー',
+        '反映先': '-',
+        'エラー内容': error.message || String(error)
+      });
+    } catch (logError) {
+      console.error('Failed to write error log:', logError);
+    }
+
     return NextResponse.json({ error: 'Internal Server Error', details: error.message || String(error) }, { status: 500 });
   }
 }

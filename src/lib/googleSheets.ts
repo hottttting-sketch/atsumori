@@ -2,12 +2,23 @@ import { google } from 'googleapis';
 
 export const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 
-export const COLUMNS = [
+export const ESTIMATE_COLUMNS = [
   '記載日', '広告主', '契約名', '開始月', '開始日', '終了日', 
   '業推', '規模', 'ターゲット', '種類', '内容', '回答', 
   '回答〆切', '社内担当', '確度', 'ステータス', 'ＲＮＢ', 
   'ＩＴＶ', 'ＥＢＣ', 'ｅａｔ', 'メモ'
 ];
+
+export const LOG_COLUMNS = [
+  '受信日時', '件名', '解析ステータス', '反映先', 'エラー内容'
+];
+
+export const getColumnsForSheet = (sheetName: string) => {
+  if (sheetName === '受信ログ') {
+    return LOG_COLUMNS;
+  }
+  return ESTIMATE_COLUMNS;
+};
 
 export type SheetRecord = {
   id: string; // generated ID for frontend key
@@ -54,6 +65,7 @@ export async function getSheetData(sheetName: string): Promise<SheetRecord[]> {
       range: `${sheetName}!A2:U`, // Assuming A to U covers the 21 columns
     });
 
+    const columns = getColumnsForSheet(sheetName);
     const rows = response.data.values || [];
     return rows.map((row, index) => {
       const record: SheetRecord = { 
@@ -61,7 +73,7 @@ export async function getSheetData(sheetName: string): Promise<SheetRecord[]> {
         sheetName, 
         rowIndex: index + 2 
       };
-      COLUMNS.forEach((col, colIndex) => {
+      columns.forEach((col, colIndex) => {
         record[col] = row[colIndex] || '';
       });
       return record;
@@ -77,8 +89,9 @@ export async function appendSheetData(sheetName: string, data: Partial<SheetReco
   if (!auth) throw new Error('Not authenticated');
   
   const sheets = google.sheets({ version: 'v4', auth });
+  const columns = getColumnsForSheet(sheetName);
   // Arrange data in the exact column order
-  const row = COLUMNS.map(col => data[col] || '');
+  const row = columns.map(col => data[col] || '');
 
   try {
     await sheets.spreadsheets.values.append({
