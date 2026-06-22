@@ -110,8 +110,8 @@ export default function Dashboard() {
           agencyLabel,
           category,
           amount: parseNum(row['ｅａｔ'] || 0), // eat列を金額とする
-          industry: row['業推'] || '',
-          department: row['社内担当'] || '',
+          industry: row['社内担当'] || '', // 業推ではなく社内担当を表示
+          department: '', // 局名は現状データソースがないため空
           notes: row['メモ'] || '',
           startMonth: row['開始月'] || '',
         };
@@ -275,7 +275,7 @@ export default function Dashboard() {
                     <th>発注 (ラップ)</th>
                     <th>前年 (実績)</th>
                     <th>見込み (A〜D)</th>
-                    <th className={styles.textCenter}>業種</th>
+                    <th className={styles.textCenter}>担当</th>
                     <th className={styles.textCenter}>代理店</th>
                     <th className={styles.textCenter}>局名</th>
                     <th className={styles.textLeft}>備考</th>
