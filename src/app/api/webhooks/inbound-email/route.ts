@@ -46,11 +46,13 @@ export async function POST(request: Request) {
     // 2. Googleスプレッドシートへの反映
     await appendSheetData(parsedData.targetSheet, parsedData.data);
 
+    const rowCount = Array.isArray(parsedData.data) ? parsedData.data.length : 1;
+
     // 3. 受信ログへの記録（成功）
     await appendSheetData('受信ログ', {
       '受信日時': getJstDate(),
       '件名': subject,
-      '解析ステータス': '完了',
+      '解析ステータス': `完了（${rowCount}行）`,
       '反映先': parsedData.targetSheet,
       'エラー内容': '-'
     });

@@ -11,16 +11,20 @@
 
 ## 2. サーバーへのデプロイ（Webへの公開）
 メールの自動受信システム（Webhook）を動かすには、アプリをPCの中だけでなく、インターネット上に置く必要があります。（※社内専用にするための鍵かけも可能です）
-- [ ] **Vercel** または **Google Cloud Run** 等のアカウントを作成する
-- [ ] 現在のプロジェクトを GitHub 等にプッシュし、Vercelと連携してデプロイする
-- [ ] デプロイ先の環境変数設定（Environment Variables）に、`.env.local` に書いた3つの情報（メールアドレス、秘密鍵、シートID、Geminiキー）をすべて登録する
+- [x] **Vercel** または **Google Cloud Run** 等のアカウントを作成する
+- [x] 現在のプロジェクトを GitHub 等にプッシュし、Vercelと連携してデプロイする
+- [x] デプロイ先の環境変数設定（Environment Variables）に、`.env.local` に書いた3つの情報（メールアドレス、秘密鍵、シートID、Geminiキー）をすべて登録する
 
 ## 3. メール受信システム（Webhook）の設定
 専用のメールアドレス（例: `inbound@atsumori.com`）を用意し、そこに届いたメールをアプリに転送する設定です。
-- [ ] **SendGrid** などのメール配信サービスでアカウントを作成する
-- [ ] Inbound Parse（受信フック）の機能設定画面を開く
-- [ ] 転送先のURL（Destination URL）として、デプロイしたアプリのURL（例: `https://atsumori-app.vercel.app/api/webhooks/inbound-email`）を登録する
+- [x] **SendGrid** などのメール配信サービスでアカウントを作成する（※今回はより簡単なMakeを使用）
+- [x] Inbound Parse（受信フック）の機能設定画面を開く
+- [x] 転送先のURL（Destination URL）として、デプロイしたアプリのURL（例: `https://atsumori-app.vercel.app/api/webhooks/inbound-email`）を登録する
 
 ## 4. UI・ロジックのブラッシュアップ（いつでも対応可能！）
 - [ ] **ダッシュボードグラフの自動化**: 現在はダミーの売上が表示されているグラフを、スプレッドシートの「金額」「確度」の列を計算して表示する本物のプログラムに差し替える
 - [ ] **デザイン調整**: 実際にデータを入れてみて、幅が狭い・文字が見にくいなどがあればCSSを微調整する
+
+## 5. セキュリティ・アクセス制限（保留中）
+- [ ] **見積データ閲覧のアクセス制限**: 機密情報を保護するため、サイトにアクセス制限（Basic認証、共通パスワード、またはGoogleアカウント認証等）を導入する。
+  - ※注意: Makeからのデータ転送を受け取るURL（`/api/webhooks/inbound-email`）は必ず制限から除外すること。

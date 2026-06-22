@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 export const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 
 export const ESTIMATE_COLUMNS = [
-  '記載日', '広告主', '契約名', '開始月', '開始日', '終了日', 
+  '記載日', '代理店', '広告主', '契約名', '開始月', '開始日', '終了日', 
   '業推', '規模', 'ターゲット', '種類', '内容', '回答', 
   '回答〆切', '社内担当', '確度', 'ステータス', 'ＲＮＢ', 
   'ＩＴＶ', 'ＥＢＣ', 'ｅａｔ', 'メモ'
@@ -62,7 +62,7 @@ export async function getSheetData(sheetName: string): Promise<SheetRecord[]> {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${sheetName}!A2:U`, // Assuming A to U covers the 21 columns
+      range: `${sheetName}!A2:V`, // Assuming A to V covers the 22 columns
     });
 
     const columns = getColumnsForSheet(sheetName);
@@ -84,22 +84,23 @@ export async function getSheetData(sheetName: string): Promise<SheetRecord[]> {
   }
 }
 
-export async function appendSheetData(sheetName: string, data: Partial<SheetRecord>) {
+export async function appendSheetData(sheetName: string, data: Partial<SheetRecord> | Partial<SheetRecord>[]) {
   const auth = getAuth();
   if (!auth) throw new Error('Not authenticated');
   
   const sheets = google.sheets({ version: 'v4', auth });
   const columns = getColumnsForSheet(sheetName);
-  // Arrange data in the exact column order
-  const row = columns.map(col => data[col] || '');
+  
+  const dataArray = Array.isArray(data) ? data : [data];
+  const values = dataArray.map(record => columns.map(col => record[col] || ''));
 
   try {
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${sheetName}!A:U`,
+      range: `${sheetName}!A:V`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [row],
+        values: values,
       },
     });
     return true;
