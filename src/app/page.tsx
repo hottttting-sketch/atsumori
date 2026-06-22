@@ -1,84 +1,325 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import styles from './page.module.css';
-import { Table } from '@/components/ui/Table';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
-const SUMMARY_COLUMNS = [
-  '記載日', '広告主', '契約名', '規模', 'ステータス', '確度'
-];
+// データの型定義
+interface ProcessedRow {
+  id: string;
+  sponsor: string;
+  agencyLabel: 'D' | 'MP' | 'アザー';
+  category: 'ラップ' | 'A' | 'B' | 'C' | 'D' | 'その他';
+  amount: number;
+  industry: string;
+  department: string;
+  notes: string;
+  startMonth: string;
+}
 
-export default function Home() {
-  const [estimates, setEstimates] = useState<any[]>([]);
-  const [presales, setPresales] = useState<any[]>([]);
-  const [chartData, setChartData] = useState<any[]>([]);
+const CATEGORIES = ['ラップ', 'A', 'B', 'C', 'D'] as const;
 
+// カンマ区切りの数値フォーマット
+const formatNum = (num: number) => {
+  if (isNaN(num)) return '0';
+  return num.toLocaleString('ja-JP');
+};
+
+// 数値のパーサー
+const parseNum = (val: any): number => {
+  if (!val) return 0;
+  const num = parseInt(String(val).replace(/[^\d-]/g, ''), 10);
+  return isNaN(num) ? 0 : num;
+};
+
+// パーセンテージフォーマット
+const formatPercent = (current: number, target: number) => {
+  if (!target || target === 0) return '-';
+  return `${((current / target) * 100).toFixed(1)}%`;
+};
+
+export default function Dashboard() {
+  const [data, setData] = useState<ProcessedRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // 選択月
+  const [selectedMonth, setSelectedMonth] = useState<string>('4月');
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
+
+  // ユーザー入力用の状態 (localStorageで永続化)
+  const [budget, setBudget] = useState<number>(0);
+  const [prevYearMap, setPrevYearMap] = useState<Record<string, number>>({});
+
+  // クライアントサイドでの初期読み込み（localStorage復元）
   useEffect(() => {
-    // 簡易的に電通見積とプレ情報を取得して表示する
+    const savedBudget = localStorage.getItem('dashboard_budget');
+    if (savedBudget) setBudget(parseInt(savedBudget, 10));
+
+    const savedPrevYear = localStorage.getItem('dashboard_prevYearMap');
+    if (savedPrevYear) setPrevYearMap(JSON.parse(savedPrevYear));
+  }, []);
+
+  // 保存処理
+  const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseNum(e.target.value);
+    setBudget(val);
+    localStorage.setItem('dashboard_budget', String(val));
+  };
+
+  const handlePrevYearChange = (id: string, valStr: string) => {
+    const val = parseNum(valStr);
+    setPrevYearMap(prev => {
+      const next = { ...prev, [id]: val };
+      localStorage.setItem('dashboard_prevYearMap', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // データ取得
+  useEffect(() => {
+    setLoading(true);
     Promise.all([
       fetch('/api/estimates?agency=電通見積').then(res => res.json()),
+      fetch('/api/estimates?agency=博報堂見積').then(res => res.json()),
+      fetch('/api/estimates?agency=アザー見積').then(res => res.json()),
       fetch('/api/presales').then(res => res.json())
-    ]).then(([estRes, preRes]) => {
-      const estData = estRes.data || [];
-      const preData = preRes.data || [];
-      
-      setEstimates(estData.slice(0, 5)); // 最新5件
-      setPresales(preData.slice(0, 5)); // 最新5件
+    ]).then(results => {
+      const allRows: any[] = [];
+      results.forEach(res => {
+        if (res.data) allRows.push(...res.data);
+      });
 
-      // モックのチャートデータ（後で実際の集計ロジックにする）
-      setChartData([
-        { name: '4月', 売上: 4000, 予測: 2400 },
-        { name: '5月', 売上: 3000, 予測: 1398 },
-        { name: '6月', 売上: 2000, 予測: 9800 },
-        { name: '7月', 売上: 2780, 予測: 3908 },
-        { name: '8月', 売上: 1890, 予測: 4800 },
-        { name: '9月', 売上: 2390, 予測: 3800 },
-      ]);
+      const processed: ProcessedRow[] = allRows.map((row: any, index: number) => {
+        // 代理店の判定
+        const agencyRaw = String(row['代理店'] || '');
+        let agencyLabel: 'D' | 'MP' | 'アザー' = 'アザー';
+        if (agencyRaw.includes('電通')) agencyLabel = 'D';
+        else if (agencyRaw.includes('博報堂')) agencyLabel = 'MP';
+
+        // 確度（カテゴリー）の判定
+        const statusRaw = String(row['確度'] || '');
+        let category: ProcessedRow['category'] = 'その他';
+        if (statusRaw.includes('発注') || statusRaw.includes('済') || statusRaw === 'ラップ') category = 'ラップ';
+        else if (statusRaw.includes('A')) category = 'A';
+        else if (statusRaw.includes('B')) category = 'B';
+        else if (statusRaw.includes('C')) category = 'C';
+        else if (statusRaw.includes('D')) category = 'D';
+
+        return {
+          id: row.id || `row-${index}`,
+          sponsor: row['広告主'] || '',
+          agencyLabel,
+          category,
+          amount: parseNum(row['ｅａｔ'] || 0), // eat列を金額とする
+          industry: row['業推'] || '',
+          department: row['社内担当'] || '',
+          notes: row['メモ'] || '',
+          startMonth: row['開始月'] || '',
+        };
+      });
+
+      // ユニークな開始月を抽出
+      const months = Array.from(new Set(processed.map(r => r.startMonth).filter(Boolean)));
+      setAvailableMonths(months.sort((a, b) => parseInt(a) - parseInt(b))); // 簡易的なソート
+      if (months.length > 0 && !months.includes(selectedMonth)) {
+        setSelectedMonth(months[0]);
+      }
+
+      setData(processed);
+      setLoading(false);
     }).catch(err => {
       console.error(err);
+      setLoading(false);
     });
   }, []);
+
+  // 選択月のデータ
+  const filteredData = useMemo(() => {
+    return data.filter(r => r.startMonth === selectedMonth);
+  }, [data, selectedMonth]);
+
+  // サマリー集計
+  const summary = useMemo(() => {
+    const result: Record<string, { D: number; MP: number; アザー: number; total: number; prevD: number; prevMP: number; prevアザー: number; prevTotal: number }> = {};
+    
+    CATEGORIES.forEach(cat => {
+      result[cat] = { D: 0, MP: 0, アザー: 0, total: 0, prevD: 0, prevMP: 0, prevアザー: 0, prevTotal: 0 };
+    });
+    result['合計'] = { D: 0, MP: 0, アザー: 0, total: 0, prevD: 0, prevMP: 0, prevアザー: 0, prevTotal: 0 };
+
+    filteredData.forEach(row => {
+      if (CATEGORIES.includes(row.category as any)) {
+        const cat = row.category;
+        const ag = row.agencyLabel;
+        const prev = prevYearMap[row.id] || 0;
+
+        // 加算
+        result[cat][ag] += row.amount;
+        result[cat].total += row.amount;
+        result['合計'][ag] += row.amount;
+        result['合計'].total += row.amount;
+
+        // 前年の加算
+        result[cat][`prev${ag}` as keyof typeof result[string]] += prev;
+        result[cat].prevTotal += prev;
+        result['合計'][`prev${ag}` as keyof typeof result[string]] += prev;
+        result['合計'].prevTotal += prev;
+      }
+    });
+
+    return result;
+  }, [filteredData, prevYearMap]);
 
   return (
     <div className={styles.container}>
       <header className={styles.header}>
         <div>
           <h1 className={styles.title}>ダッシュボード</h1>
-          <p className={styles.subtitle}>売上予測と最新の状況を確認しましょう</p>
+          <p className={styles.subtitle}>月別のスポット見込みと実績を確認します</p>
+        </div>
+        <div className={styles.controls}>
+          <select 
+            className={styles.select}
+            value={selectedMonth} 
+            onChange={(e) => setSelectedMonth(e.target.value)}
+          >
+            {availableMonths.length === 0 && <option value="">データなし</option>}
+            {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
         </div>
       </header>
 
-      <div className={styles.grid}>
-        <div className="card" style={{ gridColumn: 'span 2' }}>
-          <h2 style={{ marginBottom: '24px', fontSize: '18px' }}>売上予測 (モックデータ)</h2>
-          <div style={{ height: '300px', width: '100%' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
-                <XAxis dataKey="name" stroke="var(--text-secondary)" />
-                <YAxis stroke="var(--text-secondary)" />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'var(--bg-tertiary)', border: 'none', borderRadius: '8px', color: 'var(--text-primary)' }}
-                  itemStyle={{ color: 'var(--text-primary)' }}
-                />
-                <Bar dataKey="売上" fill="var(--accent-primary)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="予測" fill="var(--accent-secondary)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '40px' }}>読み込み中...</div>
+      ) : (
+        <>
+          {/* サマリー表 */}
+          <div className={styles.card}>
+            <div className={styles.tableContainer}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th rowSpan={2} className={styles.summaryTh}></th>
+                    <th colSpan={3} className={styles.summaryTh}>総合計 (東京支社)</th>
+                    <th colSpan={2} className={styles.summaryTh}>D (電通)</th>
+                    <th colSpan={2} className={styles.summaryTh}>MP (博報堂)</th>
+                    <th colSpan={2} className={styles.summaryTh}>アザー (その他)</th>
+                  </tr>
+                  <tr>
+                    <th className={styles.summaryTh}>金額</th>
+                    <th className={styles.summaryTh}>(前年比)</th>
+                    <th className={styles.summaryTh}>(予算比)</th>
+                    <th className={styles.summaryTh}>金額</th>
+                    <th className={styles.summaryTh}>(前年比)</th>
+                    <th className={styles.summaryTh}>金額</th>
+                    <th className={styles.summaryTh}>(前年比)</th>
+                    <th className={styles.summaryTh}>金額</th>
+                    <th className={styles.summaryTh}>(前年比)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {CATEGORIES.map(cat => (
+                    <tr key={cat}>
+                      <td className={styles.textCenter} style={{ fontWeight: 600 }}>{cat}</td>
+                      <td>{formatNum(summary[cat].total)}</td>
+                      <td>{formatPercent(summary[cat].total, summary[cat].prevTotal)}</td>
+                      <td>{formatPercent(summary[cat].total, budget)}</td>
+                      <td>{formatNum(summary[cat].D)}</td>
+                      <td>{formatPercent(summary[cat].D, summary[cat].prevD)}</td>
+                      <td>{formatNum(summary[cat].MP)}</td>
+                      <td>{formatPercent(summary[cat].MP, summary[cat].prevMP)}</td>
+                      <td>{formatNum(summary[cat].アザー)}</td>
+                      <td>{formatPercent(summary[cat].アザー, summary[cat].prevアザー)}</td>
+                    </tr>
+                  ))}
+                  {/* 合計行 */}
+                  <tr className={styles.totalRow}>
+                    <td className={styles.textCenter}>合計</td>
+                    <td>{formatNum(summary['合計'].total)}</td>
+                    <td>{formatPercent(summary['合計'].total, summary['合計'].prevTotal)}</td>
+                    <td>{formatPercent(summary['合計'].total, budget)}</td>
+                    <td>{formatNum(summary['合計'].D)}</td>
+                    <td>{formatPercent(summary['合計'].D, summary['合計'].prevD)}</td>
+                    <td>{formatNum(summary['合計'].MP)}</td>
+                    <td>{formatPercent(summary['合計'].MP, summary['合計'].prevMP)}</td>
+                    <td>{formatNum(summary['合計'].アザー)}</td>
+                    <td>{formatPercent(summary['合計'].アザー, summary['合計'].prevアザー)}</td>
+                  </tr>
+                  {/* 予算行 */}
+                  <tr className={styles.budgetRow}>
+                    <td className={styles.textCenter}>予算</td>
+                    <td>
+                      <input 
+                        type="text" 
+                        className={styles.input} 
+                        value={budget.toLocaleString('ja-JP')} 
+                        onChange={handleBudgetChange}
+                        placeholder="0"
+                      />
+                    </td>
+                    <td colSpan={8} className={styles.textCenter} style={{ color: 'var(--text-muted)' }}>
+                      ※予算は総合計に対する比率計算用です
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-        <div className="card">
-          <h2 style={{ marginBottom: '24px', fontSize: '18px' }}>直近の見積回答 (電通)</h2>
-          <div style={{ overflowY: 'auto', maxHeight: '300px' }}>
-            <Table columns={SUMMARY_COLUMNS} data={estimates} />
+
+          {/* 詳細リスト表 */}
+          <div className={styles.card}>
+            <div className={styles.tableContainer}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th className={styles.textLeft}>スポンサー</th>
+                    <th>発注 (ラップ)</th>
+                    <th>前年 (実績)</th>
+                    <th>見込み (A〜D)</th>
+                    <th className={styles.textCenter}>業種</th>
+                    <th className={styles.textCenter}>代理店</th>
+                    <th className={styles.textCenter}>局名</th>
+                    <th className={styles.textLeft}>備考</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredData.map(row => {
+                    const isWrap = row.category === 'ラップ';
+                    const prevValue = prevYearMap[row.id] || 0;
+                    
+                    return (
+                      <tr key={row.id}>
+                        <td className={styles.textLeft}>{row.sponsor || '-'}</td>
+                        <td>{isWrap ? formatNum(row.amount) : '0'}</td>
+                        <td>
+                          <input 
+                            type="text" 
+                            className={styles.input} 
+                            value={prevValue.toLocaleString('ja-JP')} 
+                            onChange={(e) => handlePrevYearChange(row.id, e.target.value)}
+                            placeholder="0"
+                          />
+                        </td>
+                        <td>{!isWrap && ['A', 'B', 'C', 'D'].includes(row.category) ? formatNum(row.amount) : '0'}</td>
+                        <td className={styles.textCenter}>{row.industry || '-'}</td>
+                        <td className={styles.textCenter}>{row.agencyLabel}</td>
+                        <td className={styles.textCenter}>{row.department || '-'}</td>
+                        <td className={styles.textLeft}>{row.notes || ''}</td>
+                      </tr>
+                    );
+                  })}
+                  {filteredData.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className={styles.textCenter} style={{ padding: '40px', color: 'var(--text-muted)' }}>
+                        この月のデータはありません
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-        <div className="card" style={{ gridColumn: 'span 3' }}>
-          <h2 style={{ marginBottom: '24px', fontSize: '18px' }}>最新のプレ情報</h2>
-          <Table columns={SUMMARY_COLUMNS} data={presales} />
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }
