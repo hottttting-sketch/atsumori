@@ -175,7 +175,7 @@ export default function Dashboard() {
     <div className={styles.container}>
       <header className={styles.header}>
         <div>
-          <h1 className={styles.title}>ダッシュボード</h1>
+          <h1 className={styles.title}>見込表</h1>
           <p className={styles.subtitle}>月別のスポット見込みと実績を確認します</p>
         </div>
         <div className={styles.controls}>

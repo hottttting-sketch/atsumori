@@ -2,14 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, FileText, Users, Mail, Flame } from 'lucide-react';
+import { Home, FileText, Users, Mail, Flame, Calendar, Settings } from 'lucide-react';
 import styles from './Sidebar.module.css';
 import clsx from 'clsx';
 
 const navItems = [
-  { href: '/', label: 'ダッシュボード', icon: Home },
+  { href: '/', label: '見込表', icon: Home },
+  { href: '/weekly-report', label: '週報', icon: Calendar },
   { href: '/estimates', label: '見積管理', icon: FileText },
   { href: '/presales', label: 'プレ情報管理', icon: Users },
+  { href: '/settings', label: '前年・予算比設定', icon: Settings },
   { href: '/email-logs', label: 'メール受信ログ', icon: Mail },
 ];
 
