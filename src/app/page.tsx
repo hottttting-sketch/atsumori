@@ -8,6 +8,7 @@ interface ProcessedRow {
   id: string;
   sponsor: string;
   agencyLabel: 'D' | 'MP' | 'アザー';
+  agencyName: string;
   category: 'ラップ' | 'A' | 'B' | 'C' | 'D' | 'その他';
   amount: number;
   industry: string;
@@ -108,6 +109,7 @@ export default function Dashboard() {
           id: row.id || `row-${index}`,
           sponsor: row['広告主'] || '',
           agencyLabel,
+          agencyName: row['代理店'] || '',
           category,
           amount: parseNum(row['ｅａｔ'] || 0), // eat列を金額とする
           industry: row['社内担当'] || '', // 業推ではなく社内担当を表示
@@ -301,7 +303,7 @@ export default function Dashboard() {
                         </td>
                         <td>{!isWrap && ['A', 'B', 'C', 'D'].includes(row.category) ? formatNum(row.amount) : '0'}</td>
                         <td className={styles.textCenter}>{row.industry || '-'}</td>
-                        <td className={styles.textCenter}>{row.agencyLabel}</td>
+                        <td className={styles.textCenter}>{row.agencyName || '-'}</td>
                         <td className={styles.textCenter}>{row.department || '-'}</td>
                         <td className={styles.textLeft}>{row.notes || ''}</td>
                       </tr>
