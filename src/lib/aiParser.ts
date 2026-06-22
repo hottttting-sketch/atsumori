@@ -25,7 +25,7 @@ Return a JSON object with the following schema:
       "代理店": "string",
       "広告主": "string",
       "契約名": "string",
-      "開始月": "string (e.g. 4月)",
+      "開始月": "string (YYYY年MM月, e.g. 2024年04月)",
       "開始日": "string (YYYY/MM/DD)",
       "終了日": "string (YYYY/MM/DD)",
       "業推": "string",
@@ -49,7 +49,7 @@ Return a JSON object with the following schema:
 If a field is not found in the email, leave it as an empty string "".
 
 CRITICAL RULES:
-1. MULTIPLE MONTHS: If the estimate or project spans multiple months, split it into multiple objects within the "data" array (one object per month). For each split row, increment the "開始月" (Start Month) sequentially (e.g., 4月, 5月, 6月).
+1. MULTIPLE MONTHS: If the estimate or project spans multiple months, split it into multiple objects within the "data" array (one object per month). For each split row, increment the "開始月" (Start Month) sequentially using the YYYY年MM月 format (e.g., 2024年04月, 2024年05月, 2024年06月).
 2. BACK-END FIGURES (裏数字): Columns ＲＮＢ, ＩＴＶ, ＥＢＣ, and ｅａｔ must ONLY be filled if the email contains actual back-end figures or revenue numbers. If it is a normal estimate email without back-end figures, leave these 4 fields completely empty "".
 3. MANUAL ENTRY FIELDS: Columns 社内担当, 確度, and メモ will be entered manually by the user. You MUST ALWAYS leave these 3 fields as completely empty strings "", regardless of the email content.
   `;
