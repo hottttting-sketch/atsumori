@@ -274,11 +274,11 @@ export default function Dashboard() {
                 <thead>
                   <tr>
                     <th className={styles.textLeft}>スポンサー</th>
+                    <th className={styles.textCenter}>代理店</th>
                     <th>発注 (ラップ)</th>
                     <th>前年 (実績)</th>
                     <th>見込み (A〜D)</th>
                     <th className={styles.textCenter}>担当</th>
-                    <th className={styles.textCenter}>代理店</th>
                     <th className={styles.textLeft}>備考</th>
                   </tr>
                 </thead>
@@ -290,6 +290,7 @@ export default function Dashboard() {
                     return (
                       <tr key={row.id}>
                         <td className={styles.textLeft}>{row.sponsor || '-'}</td>
+                        <td className={styles.textCenter}>{row.agencyName || '-'}</td>
                         <td>{isWrap ? formatNum(row.amount) : '0'}</td>
                         <td>
                           <input 
@@ -302,7 +303,6 @@ export default function Dashboard() {
                         </td>
                         <td>{!isWrap && ['A', 'B', 'C', 'D'].includes(row.category) ? formatNum(row.amount) : '0'}</td>
                         <td className={styles.textCenter}>{row.industry || '-'}</td>
-                        <td className={styles.textCenter}>{row.agencyName || '-'}</td>
                         <td className={styles.textLeft}>{row.notes || ''}</td>
                       </tr>
                     );
