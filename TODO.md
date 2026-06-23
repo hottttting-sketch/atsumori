@@ -23,7 +23,7 @@
 
 ## 3.5 MakeからGmail (GAS) への移行とテスト
 Make.comの動作不安定を解消するため、専用GmailアカウントとGASを用いた直接転送に切り替える。
-- [ ] 熱盛用のGmailアカウントにGASの転送スクリプト（`forwardToVercelWebhook`）を配置する
+- [x] 熱盛用のGmailアカウントにGASの転送スクリプト（`forwardToVercelWebhook`）を配置する
 - [ ] スマホ等から添付ファイル付きのテストメールを送信し、VercelのWebhookが正常にデータを受け取って処理するかテストする
 - [ ] 問題なくスプレッドシートに書き込まれることを確認したら、GASで1分間隔の定期実行トリガーを設定する
 
