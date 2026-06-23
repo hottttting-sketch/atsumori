@@ -110,7 +110,7 @@ CRITICAL RULES:
   }
 
   // We use fetch instead of the SDK to avoid SDK parsing bugs with certain valid API keys.
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
   try {
     const response = await fetch(url, {
