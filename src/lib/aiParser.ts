@@ -121,37 +121,52 @@ CRITICAL RULES:
 
   const parts: any[] = [{ text: finalPrompt }, ...inlineDatas];
 
-  // Using the original stable gemini-2.5-flash
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: parts
+  let retries = 1; // Retry exactly once for 503/429 errors to avoid Vercel timeouts
+  let lastError = null;
+
+  while (retries >= 0) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: parts
+            }
+          ],
+          generationConfig: {
+            responseMimeType: "application/json"
           }
-        ],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
-      })
-    });
+        })
+      });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Gemini API error (${response.status}): ${errText}`);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Gemini API error (${response.status}): ${errText}`);
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      return JSON.parse(text);
+    } catch (error: any) {
+      console.error('AI Parsing Error on attempt:', error);
+      lastError = error;
+      
+      // If it's a 503 (High Demand) or 429 (Rate Limit), and we have retries left, wait and retry
+      if (retries > 0 && error.message && (error.message.includes('503') || error.message.includes('429'))) {
+        console.log(\`API overloaded (503/429). Retrying in 5 seconds... (\${retries} retries left)\`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        retries--;
+      } else {
+        throw error;
+      }
     }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    return JSON.parse(text);
-  } catch (error) {
-    console.error('AI Parsing Error:', error);
-    throw error;
   }
+  
+  throw lastError;
 }
