@@ -6,6 +6,8 @@ function getJstDate() {
   return new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
 }
 
+export const maxDuration = 60; // Allow up to 60 seconds for execution
+
 export async function POST(request: Request) {
   try {
     // Depending on the email webhook provider (SendGrid, Postmark, etc.),

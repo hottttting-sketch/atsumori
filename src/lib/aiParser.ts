@@ -158,17 +158,38 @@ CRITICAL RULES:
     return await callGeminiForSingleFile(apiKey, prompt, subject, body, null);
   }
 
-  // Parallel execution for each file
-  const promises = validFiles.map(file => callGeminiForSingleFile(apiKey, prompt, subject, body, file));
-  const results = await Promise.all(promises);
-
-  // Merge the "data" arrays from all results
+  // Sequential execution to avoid hitting Gemini API Rate Limits (429)
   const mergedData: any[] = [];
-  for (const res of results) {
+  for (let i = 0; i < validFiles.length; i++) {
+    const file = validFiles[i];
+    
+    // Add retry logic inside the loop to handle transient 429s
+    let res = null;
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        res = await callGeminiForSingleFile(apiKey, prompt, subject, body, file);
+        break;
+      } catch (err: any) {
+        if (err.message && err.message.includes('429') && retries > 1) {
+          console.log(`Rate limited (429). Retrying in 10s... (${retries - 1} retries left)`);
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          retries--;
+        } else {
+          throw err;
+        }
+      }
+    }
+
     if (res && res.data && Array.isArray(res.data)) {
       mergedData.push(...res.data);
     } else if (res && res.data) {
       mergedData.push(res.data);
+    }
+
+    // Add a 3-second delay between requests to be safe
+    if (i < validFiles.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
   }
 
