@@ -54,6 +54,7 @@ CRITICAL RULES:
 2. BACK-END FIGURES (裏数字): Columns ＲＮＢ, ＩＴＶ, ＥＢＣ, and ｅａｔ must ONLY be filled if the email contains actual back-end figures or revenue numbers. If it is a normal estimate email without back-end figures, leave these 4 fields completely empty "".
 3. MANUAL ENTRY FIELDS: Columns 社内担当, 確度, and メモ will be entered manually by the user. You MUST ALWAYS leave these 3 fields as completely empty strings "", regardless of the email content.
 4. AGENCY NAME (代理店): You MUST ALWAYS extract the name of the advertising agency (e.g., 電通, 博報堂, ADK, サイバーエージェント, etc.) from the email body, attachment content, OR the attachment file name, and put it in the "代理店" field. If the targetSheet is "アザー見積", it is extremely important to identify and output the specific agency name rather than leaving it blank.
+5. STRICT DEDUPLICATION: If the same estimate or project is mentioned multiple times with slight text variations (e.g., '(株)ニチレイフーズ' vs 'ニチレイフーズ', or '26年8-9月_...' vs '２６年８ー９月'), you MUST merge them into a single project. DO NOT create separate rows for these variations. You should only create multiple rows for the same project if they are for DIFFERENT MONTHS (as per rule 1). Otherwise, strictly output ONE row per project.
   `;
 
   let attachmentText = '';
