@@ -1,5 +1,95 @@
 import * as xlsx from 'xlsx';
 
+async function callGeminiForSingleFile(apiKey: string, basePrompt: string, subject: string, body: string, file: File | null) {
+  let attachmentText = '';
+  let attachmentName = '';
+  let inlineDatas: any[] = [];
+
+  if (file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const mimeType = file.type;
+    const fileName = file.name || '';
+    attachmentName = fileName;
+
+    if (
+      mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      mimeType === 'application/vnd.ms-excel' ||
+      mimeType === 'text/csv' ||
+      fileName.endsWith('.xlsx') ||
+      fileName.endsWith('.csv')
+    ) {
+      try {
+        const workbook = xlsx.read(buffer, { type: 'buffer' });
+        workbook.SheetNames.forEach(sheetName => {
+          const csv = xlsx.utils.sheet_to_csv(workbook.Sheets[sheetName]);
+          attachmentText += `\n--- File: ${fileName}, Sheet: ${sheetName} ---\n${csv}\n`;
+        });
+      } catch (err) {
+        console.error('Failed to parse Excel/CSV:', err);
+      }
+    } else if (
+      mimeType === 'application/pdf' ||
+      mimeType.startsWith('image/')
+    ) {
+      inlineDatas.push({
+        inlineData: {
+          mimeType: mimeType || 'application/pdf',
+          data: buffer.toString('base64')
+        }
+      });
+    } else {
+      try {
+        const textContent = buffer.toString('utf-8');
+        if (textContent && textContent.length < 50000) {
+          attachmentText += `\n--- Text Attachment: ${fileName} ---\n${textContent}\n`;
+        }
+      } catch (e) {
+        // Ignore
+      }
+    }
+  }
+
+  const finalPrompt = basePrompt
+    .replace('{ATTACHMENT_NAME_PLACEHOLDER}', attachmentName ? `Attachment File Name: ${attachmentName}` : '')
+    .replace('{ATTACHMENT_TEXT_PLACEHOLDER}', attachmentText ? `\nAttachment Content:\n${attachmentText}` : '');
+
+  const parts: any[] = [{ text: finalPrompt }, ...inlineDatas];
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: parts
+          }
+        ],
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gemini API error (${response.status}): ${errText}`);
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    return JSON.parse(text);
+  } catch (error) {
+    console.error('AI Parsing Error:', error);
+    throw error;
+  }
+}
+
 export async function parseEmailContent(subject: string, body: string, files: File[] = []) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -8,8 +98,10 @@ export async function parseEmailContent(subject: string, body: string, files: Fi
 
   const prompt = `
 You are an AI assistant that extracts structured data from business emails.
-Based on the following email subject, body, and attachments, extract the relevant fields to populate a database.
-For each extracted item (e.g. for each attached estimate file), determine its specific "targetSheet" which must be one of: "電通見積", "博報堂見積", "アザー見積", or "プレ".
+Based on the following email subject, body, and ONE attachment (if provided), extract the relevant fields to populate a database.
+IMPORTANT: You are analyzing ONLY ONE attachment per execution. Do not extract projects that are not present in this specific attachment. Use the email body only for supplementary context (like agency name).
+
+Determine the specific "targetSheet" for this item, which must be one of: "電通見積", "博報堂見積", "アザー見積", or "プレ".
 If the item is an estimate related to Dentsu, choose "電通見積". For Hakuhodo, choose "博報堂見積". For other agencies, choose "アザー見積". If the item relates to pre-sales, leads, or inquiries (e.g., contains words like "プレ", "相談", "問い合わせ"), choose "プレ".
 
 Email Subject: ${subject}
@@ -47,7 +139,7 @@ Return a JSON object with the following schema:
     }
   ]
 }
-If a field is not found in the email, leave it as an empty string "".
+If a field is not found, leave it as an empty string "".
 
 CRITICAL RULES:
 1. MULTIPLE MONTHS: If the estimate or project spans multiple months, split it into multiple objects within the "data" array (one object per month). For each split row, increment the "開始月" (Start Month) sequentially using the YYYY年MM月 format (e.g., 2024年04月, 2024年05月, 2024年06月).
@@ -57,97 +149,28 @@ CRITICAL RULES:
 5. STRICT DEDUPLICATION: If the same estimate or project is mentioned multiple times with slight text variations (e.g., '(株)ニチレイフーズ' vs 'ニチレイフーズ', or '26年8-9月_...' vs '２６年８ー９月'), you MUST merge them into a single project. DO NOT create separate rows for these variations. You should only create multiple rows for the same project if they are for DIFFERENT MONTHS (as per rule 1). Otherwise, strictly output ONE row per project.
   `;
 
-  let attachmentText = '';
-  let attachmentName = '';
-  let inlineDatas: any[] = [];
+  if (!files || files.length === 0) {
+    return await callGeminiForSingleFile(apiKey, prompt, subject, body, null);
+  }
 
-  for (const file of files) {
-    if (!file) continue;
+  const validFiles = files.filter(f => f);
+  if (validFiles.length === 0) {
+    return await callGeminiForSingleFile(apiKey, prompt, subject, body, null);
+  }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const mimeType = file.type;
-    const fileName = file.name || '';
-    attachmentName += (attachmentName ? ', ' : '') + fileName;
+  // Parallel execution for each file
+  const promises = validFiles.map(file => callGeminiForSingleFile(apiKey, prompt, subject, body, file));
+  const results = await Promise.all(promises);
 
-    // Excel or CSV handling
-    if (
-      mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-      mimeType === 'application/vnd.ms-excel' ||
-      mimeType === 'text/csv' ||
-      fileName.endsWith('.xlsx') ||
-      fileName.endsWith('.csv')
-    ) {
-      try {
-        const workbook = xlsx.read(buffer, { type: 'buffer' });
-        workbook.SheetNames.forEach(sheetName => {
-          const csv = xlsx.utils.sheet_to_csv(workbook.Sheets[sheetName]);
-          attachmentText += `\n--- File: ${fileName}, Sheet: ${sheetName} ---\n${csv}\n`;
-        });
-      } catch (err) {
-        console.error('Failed to parse Excel/CSV:', err);
-      }
-    } else if (
-      mimeType === 'application/pdf' ||
-      mimeType.startsWith('image/')
-    ) {
-      // PDF or Image handling for Gemini inlineData
-      inlineDatas.push({
-        inlineData: {
-          mimeType: mimeType || 'application/pdf',
-          data: buffer.toString('base64')
-        }
-      });
-    } else {
-      // Try to read as plain text
-      try {
-        const textContent = buffer.toString('utf-8');
-        if (textContent && textContent.length < 50000) { // arbitrary limit to prevent blowing up the prompt
-          attachmentText += `\n--- Text Attachment: ${fileName} ---\n${textContent}\n`;
-        }
-      } catch (e) {
-        // Ignore
-      }
+  // Merge the "data" arrays from all results
+  const mergedData: any[] = [];
+  for (const res of results) {
+    if (res && res.data && Array.isArray(res.data)) {
+      mergedData.push(...res.data);
+    } else if (res && res.data) {
+      mergedData.push(res.data);
     }
   }
 
-  const finalPrompt = prompt
-    .replace('{ATTACHMENT_NAME_PLACEHOLDER}', attachmentName ? `Attachment File Names: ${attachmentName}` : '')
-    .replace('{ATTACHMENT_TEXT_PLACEHOLDER}', attachmentText ? `\nAttachment Content:\n${attachmentText}` : '');
-
-  const parts: any[] = [{ text: finalPrompt }, ...inlineDatas];
-
-  // We use fetch instead of the SDK to avoid SDK parsing bugs with certain valid API keys.
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: parts
-          }
-        ],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
-      })
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Gemini API error (${response.status}): ${errText}`);
-    }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    return JSON.parse(text);
-  } catch (error) {
-    console.error('AI Parsing Error:', error);
-    throw error;
-  }
+  return { data: mergedData };
 }
