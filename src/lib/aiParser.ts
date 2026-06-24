@@ -8,9 +8,9 @@ export async function parseEmailContent(subject: string, body: string, files: Fi
 
   const prompt = `
 You are an AI assistant that extracts structured data from business emails.
-Based on the following email subject and body, extract the relevant fields to populate a database.
-Also, determine the "targetSheet" which must be one of: "電通見積", "博報堂見積", "アザー見積", or "プレ".
-If it's an estimate related to Dentsu, choose "電通見積". For Hakuhodo, choose "博報堂見積". For other agencies, choose "アザー見積". If the email subject or body contains words like "プレ", "プレ情報", "相談", "問い合わせ", "リード", or if it's pre-sales or lead info, choose "プレ".
+Based on the following email subject, body, and attachments, extract the relevant fields to populate a database.
+For each extracted item (e.g. for each attached estimate file), determine its specific "targetSheet" which must be one of: "電通見積", "博報堂見積", "アザー見積", or "プレ".
+If the item is an estimate related to Dentsu, choose "電通見積". For Hakuhodo, choose "博報堂見積". For other agencies, choose "アザー見積". If the item relates to pre-sales, leads, or inquiries (e.g., contains words like "プレ", "相談", "問い合わせ"), choose "プレ".
 
 Email Subject: ${subject}
 Email Body: ${body}
@@ -19,9 +19,9 @@ Email Body: ${body}
 
 Return a JSON object with the following schema:
 {
-  "targetSheet": "string",
   "data": [
     {
+      "targetSheet": "string (one of: 電通見積, 博報堂見積, アザー見積, プレ)",
       "記載日": "string (YYYY/MM/DD)",
       "代理店": "string",
       "広告主": "string",

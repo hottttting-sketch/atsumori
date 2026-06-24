@@ -41,23 +41,22 @@ export async function POST(request: Request) {
     // 1. AIによるメール解析（添付ファイル対応）
     const parsedData = await parseEmailContent(subject, text, files);
     
-    if (!parsedData || !parsedData.targetSheet || !parsedData.data) {
+    if (!parsedData || !parsedData.data) {
       throw new Error('AI returned invalid format');
     }
 
-    // 2. Googleスプレッドシートへの反映
-    const targetSheet = parsedData.targetSheet;
     const items = Array.isArray(parsedData.data) ? parsedData.data : [parsedData.data];
     
-    // 裏数字が含まれているかチェック
-    const hasBackEndFigures = items.some((item: any) => item['ＲＮＢ'] || item['ＩＴＶ'] || item['ＥＢＣ'] || item['ｅａｔ']);
-    
-    let existingSheetData: any[] = [];
-    if (hasBackEndFigures) {
-      existingSheetData = await getSheetData(targetSheet);
-    }
+    const sheetDataCache: { [sheetName: string]: any[] } = {};
 
+    // 2. Googleスプレッドシートへの反映
     for (const item of items) {
+      const targetSheet = item.targetSheet;
+      if (!targetSheet) {
+        console.warn('Item missing targetSheet, skipping:', item);
+        continue;
+      }
+
       const itemHasFigures = item['ＲＮＢ'] || item['ＩＴＶ'] || item['ＥＢＣ'] || item['ｅａｔ'];
       
       if (!itemHasFigures) {
@@ -68,7 +67,12 @@ export async function POST(request: Request) {
         item['ｅａｔ'] = '';
         await appendSheetData(targetSheet, item);
       } else {
-        // 裏数字が含まれる場合、既存行を探す
+        // 裏数字が含まれる場合、キャッシュから既存行を探す
+        if (!sheetDataCache[targetSheet]) {
+          sheetDataCache[targetSheet] = await getSheetData(targetSheet);
+        }
+        const existingSheetData = sheetDataCache[targetSheet];
+
         const match = existingSheetData.find(row => {
           const sameMonth = row['開始月'] === item['開始月'];
           if (!sameMonth) return false;
@@ -100,14 +104,15 @@ export async function POST(request: Request) {
       }
     }
 
-    const rowCount = Array.isArray(parsedData.data) ? parsedData.data.length : 1;
+    const rowCount = items.length;
+    const targetSheetsUsed = Array.from(new Set(items.map((i: any) => i.targetSheet).filter(Boolean))).join(', ') || '-';
 
     // 3. 受信ログへの記録（成功）
     await appendSheetData('受信ログ', {
       '受信日時': getJstDate(),
       '件名': subject,
       '解析ステータス': `完了（${rowCount}行）`,
-      '反映先': parsedData.targetSheet,
+      '反映先': targetSheetsUsed,
       'エラー内容': '-'
     });
 
