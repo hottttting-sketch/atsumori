@@ -56,7 +56,7 @@ async function callGeminiForSingleFile(apiKey: string, basePrompt: string, subje
 
   const parts: any[] = [{ text: finalPrompt }, ...inlineDatas];
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
   try {
     const response = await fetch(url, {
