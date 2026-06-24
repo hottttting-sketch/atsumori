@@ -22,6 +22,7 @@ Return a JSON object with the following schema:
 {
   "data": [
     {
+      "ソースファイル名": "string (The exact name of the file this data came from)",
       "targetSheet": "string (one of: 電通見積, 博報堂見積, アザー見積, プレ)",
       "記載日": "string (YYYY/MM/DD)",
       "代理店": "string",
@@ -52,6 +53,8 @@ If a field is not found, leave it as an empty string "".
 
 CRITICAL RULES FOR MULTIPLE ATTACHMENTS (ISOLATION):
 There are multiple attached files. You MUST treat each file as completely separate. Do NOT mix information between them. For example, do not assign the Advertiser from File A to the Contract of File B. Analyze each file independently and output them as separate objects in the "data" array.
+For EACH object you extract, you MUST fill the "ソースファイル名" field with the exact file name the data came from.
+When extracting "代理店" (Agency Name) and determining "targetSheet", you MUST ONLY look at the text between "--- START OF FILE: [ソースファイル名] ---" and "--- END OF FILE: [ソースファイル名] ---". If the agency name is not found in that specific section, you MUST set "代理店" to "" and "targetSheet" to "アザー見積". NEVER copy the agency from the Email Body or a different file!
 
 CRITICAL RULES:
 1. MULTIPLE MONTHS: If the estimate or project spans multiple months, split it into multiple objects within the "data" array (one object per month). For each split row, increment the "開始月" (Start Month) sequentially using the YYYY年MM月 format (e.g., 2024年04月, 2024年05月, 2024年06月).
