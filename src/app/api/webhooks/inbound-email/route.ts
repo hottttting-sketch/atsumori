@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     
     let subject = 'No Subject';
     let text = '';
-    let file: File | undefined = undefined;
+    const files: File[] = [];
 
     const contentType = request.headers.get('content-type') || '';
 
@@ -22,9 +22,11 @@ export async function POST(request: Request) {
       subject = (formData.get('subject') as string) || '';
       text = (formData.get('text') as string) || '';
       
-      const fileEntry = formData.get('file');
-      if (fileEntry && typeof fileEntry === 'object' && 'arrayBuffer' in fileEntry) {
-        file = fileEntry as File;
+      for (let i = 0; i < 5; i++) {
+        const fileEntry = formData.get(`file${i}`);
+        if (fileEntry && typeof fileEntry === 'object' && 'arrayBuffer' in fileEntry) {
+          files.push(fileEntry as File);
+        }
       }
     } else {
       const payload = await request.json();
@@ -37,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     // 1. AIによるメール解析（添付ファイル対応）
-    const parsedData = await parseEmailContent(subject, text, file);
+    const parsedData = await parseEmailContent(subject, text, files);
     
     if (!parsedData || !parsedData.targetSheet || !parsedData.data) {
       throw new Error('AI returned invalid format');

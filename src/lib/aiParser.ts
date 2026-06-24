@@ -1,6 +1,6 @@
 import * as xlsx from 'xlsx';
 
-export async function parseEmailContent(subject: string, body: string, file?: File) {
+export async function parseEmailContent(subject: string, body: string, files: File[] = []) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY is not configured in environment variables');
@@ -58,14 +58,16 @@ CRITICAL RULES:
 
   let attachmentText = '';
   let attachmentName = '';
-  let inlineData: any = null;
+  let inlineDatas: any[] = [];
 
-  if (file) {
+  for (const file of files) {
+    if (!file) continue;
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const mimeType = file.type;
     const fileName = file.name || '';
-    attachmentName = fileName;
+    attachmentName += (attachmentName ? ', ' : '') + fileName;
 
     // Excel or CSV handling
     if (
@@ -79,7 +81,7 @@ CRITICAL RULES:
         const workbook = xlsx.read(buffer, { type: 'buffer' });
         workbook.SheetNames.forEach(sheetName => {
           const csv = xlsx.utils.sheet_to_csv(workbook.Sheets[sheetName]);
-          attachmentText += `\n--- Sheet: ${sheetName} ---\n${csv}\n`;
+          attachmentText += `\n--- File: ${fileName}, Sheet: ${sheetName} ---\n${csv}\n`;
         });
       } catch (err) {
         console.error('Failed to parse Excel/CSV:', err);
@@ -89,10 +91,12 @@ CRITICAL RULES:
       mimeType.startsWith('image/')
     ) {
       // PDF or Image handling for Gemini inlineData
-      inlineData = {
-        mimeType: mimeType || 'application/pdf',
-        data: buffer.toString('base64')
-      };
+      inlineDatas.push({
+        inlineData: {
+          mimeType: mimeType || 'application/pdf',
+          data: buffer.toString('base64')
+        }
+      });
     } else {
       // Try to read as plain text
       try {
@@ -107,13 +111,10 @@ CRITICAL RULES:
   }
 
   const finalPrompt = prompt
-    .replace('{ATTACHMENT_NAME_PLACEHOLDER}', attachmentName ? `Attachment File Name: ${attachmentName}` : '')
+    .replace('{ATTACHMENT_NAME_PLACEHOLDER}', attachmentName ? `Attachment File Names: ${attachmentName}` : '')
     .replace('{ATTACHMENT_TEXT_PLACEHOLDER}', attachmentText ? `\nAttachment Content:\n${attachmentText}` : '');
 
-  const parts: any[] = [{ text: finalPrompt }];
-  if (inlineData) {
-    parts.push({ inlineData });
-  }
+  const parts: any[] = [{ text: finalPrompt }, ...inlineDatas];
 
   // We use fetch instead of the SDK to avoid SDK parsing bugs with certain valid API keys.
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
