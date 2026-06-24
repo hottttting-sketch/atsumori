@@ -56,7 +56,7 @@ async function callGeminiForSingleFile(apiKey: string, basePrompt: string, subje
 
   const parts: any[] = [{ text: finalPrompt }, ...inlineDatas];
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
   try {
     const response = await fetch(url, {
@@ -165,15 +165,15 @@ CRITICAL RULES:
     
     // Add retry logic inside the loop to handle transient 429s
     let res = null;
-    let retries = 3;
-    while (retries > 0) {
+    let retries = 1; // Reduce retries to prevent Vercel 60s timeout
+    while (retries >= 0) {
       try {
         res = await callGeminiForSingleFile(apiKey, prompt, subject, body, file);
         break;
       } catch (err: any) {
-        if (err.message && err.message.includes('429') && retries > 1) {
-          console.log(`Rate limited (429). Retrying in 10s... (${retries - 1} retries left)`);
-          await new Promise(resolve => setTimeout(resolve, 10000));
+        if (err.message && err.message.includes('429') && retries > 0) {
+          console.log(`Rate limited (429). Retrying in 5s... (${retries} retries left)`);
+          await new Promise(resolve => setTimeout(resolve, 5000));
           retries--;
         } else {
           throw err;
