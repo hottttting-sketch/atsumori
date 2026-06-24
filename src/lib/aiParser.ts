@@ -14,6 +14,7 @@ If it's an estimate related to Dentsu, choose "電通見積". For Hakuhodo, choo
 
 Email Subject: ${subject}
 Email Body: ${body}
+{ATTACHMENT_NAME_PLACEHOLDER}
 {ATTACHMENT_TEXT_PLACEHOLDER}
 
 Return a JSON object with the following schema:
@@ -52,10 +53,11 @@ CRITICAL RULES:
 1. MULTIPLE MONTHS: If the estimate or project spans multiple months, split it into multiple objects within the "data" array (one object per month). For each split row, increment the "開始月" (Start Month) sequentially using the YYYY年MM月 format (e.g., 2024年04月, 2024年05月, 2024年06月).
 2. BACK-END FIGURES (裏数字): Columns ＲＮＢ, ＩＴＶ, ＥＢＣ, and ｅａｔ must ONLY be filled if the email contains actual back-end figures or revenue numbers. If it is a normal estimate email without back-end figures, leave these 4 fields completely empty "".
 3. MANUAL ENTRY FIELDS: Columns 社内担当, 確度, and メモ will be entered manually by the user. You MUST ALWAYS leave these 3 fields as completely empty strings "", regardless of the email content.
-4. AGENCY NAME (代理店): You MUST ALWAYS extract the name of the advertising agency (e.g., 電通, 博報堂, ADK, サイバーエージェント, etc.) from the email and put it in the "代理店" field. If the targetSheet is "アザー見積", it is extremely important to identify and output the specific agency name rather than leaving it blank.
+4. AGENCY NAME (代理店): You MUST ALWAYS extract the name of the advertising agency (e.g., 電通, 博報堂, ADK, サイバーエージェント, etc.) from the email body, attachment content, OR the attachment file name, and put it in the "代理店" field. If the targetSheet is "アザー見積", it is extremely important to identify and output the specific agency name rather than leaving it blank.
   `;
 
   let attachmentText = '';
+  let attachmentName = '';
   let inlineData: any = null;
 
   if (file) {
@@ -63,6 +65,7 @@ CRITICAL RULES:
     const buffer = Buffer.from(arrayBuffer);
     const mimeType = file.type;
     const fileName = file.name || '';
+    attachmentName = fileName;
 
     // Excel or CSV handling
     if (
@@ -103,7 +106,9 @@ CRITICAL RULES:
     }
   }
 
-  const finalPrompt = prompt.replace('{ATTACHMENT_TEXT_PLACEHOLDER}', attachmentText ? `\nAttachment Content:\n${attachmentText}` : '');
+  const finalPrompt = prompt
+    .replace('{ATTACHMENT_NAME_PLACEHOLDER}', attachmentName ? `Attachment File Name: ${attachmentName}` : '')
+    .replace('{ATTACHMENT_TEXT_PLACEHOLDER}', attachmentText ? `\nAttachment Content:\n${attachmentText}` : '');
 
   const parts: any[] = [{ text: finalPrompt }];
   if (inlineData) {
