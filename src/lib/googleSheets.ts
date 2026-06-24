@@ -109,3 +109,30 @@ export async function appendSheetData(sheetName: string, data: Partial<SheetReco
     throw error;
   }
 }
+
+export async function updateSheetRow(sheetName: string, rowIndex: number, fullRowData: Partial<SheetRecord>) {
+  const auth = getAuth();
+  if (!auth) throw new Error('Not authenticated');
+  
+  const sheets = google.sheets({ version: 'v4', auth });
+  const columns = getColumnsForSheet(sheetName);
+  
+  // Create an array of values based on the columns
+  const values = [columns.map(col => fullRowData[col] !== undefined ? fullRowData[col] : '')];
+
+  try {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${sheetName}!A${rowIndex}:V${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: values,
+      },
+    });
+    return true;
+  } catch (error) {
+    console.error(`Error updating row ${rowIndex} in sheet ${sheetName}:`, error);
+    throw error;
+  }
+}
+

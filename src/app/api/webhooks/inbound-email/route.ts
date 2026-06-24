@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { parseEmailContent } from '@/lib/aiParser';
-import { appendSheetData } from '@/lib/googleSheets';
+import { appendSheetData, getSheetData, updateSheetRow } from '@/lib/googleSheets';
 
 function getJstDate() {
   return new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
@@ -44,7 +44,59 @@ export async function POST(request: Request) {
     }
 
     // 2. Googleスプレッドシートへの反映
-    await appendSheetData(parsedData.targetSheet, parsedData.data);
+    const targetSheet = parsedData.targetSheet;
+    const items = Array.isArray(parsedData.data) ? parsedData.data : [parsedData.data];
+    
+    // 裏数字が含まれているかチェック
+    const hasBackEndFigures = items.some((item: any) => item['ＲＮＢ'] || item['ＩＴＶ'] || item['ＥＢＣ'] || item['ｅａｔ']);
+    
+    let existingSheetData: any[] = [];
+    if (hasBackEndFigures) {
+      existingSheetData = await getSheetData(targetSheet);
+    }
+
+    for (const item of items) {
+      const itemHasFigures = item['ＲＮＢ'] || item['ＩＴＶ'] || item['ＥＢＣ'] || item['ｅａｔ'];
+      
+      if (!itemHasFigures) {
+        // 通常の見積（裏数字なし）：裏数字列を強制的に空にして新規追加
+        item['ＲＮＢ'] = '';
+        item['ＩＴＶ'] = '';
+        item['ＥＢＣ'] = '';
+        item['ｅａｔ'] = '';
+        await appendSheetData(targetSheet, item);
+      } else {
+        // 裏数字が含まれる場合、既存行を探す
+        const match = existingSheetData.find(row => {
+          const sameMonth = row['開始月'] === item['開始月'];
+          if (!sameMonth) return false;
+          
+          const itemAd = String(item['広告主'] || '');
+          const itemContract = String(item['契約名'] || '');
+          const rowAd = String(row['広告主'] || '');
+          const rowContract = String(row['契約名'] || '');
+          
+          const matchAd = itemAd && rowAd && (rowAd.includes(itemAd) || itemAd.includes(rowAd));
+          const matchContract = itemContract && rowContract && (rowContract.includes(itemContract) || itemContract.includes(rowContract));
+          
+          return matchAd || matchContract;
+        });
+
+        if (match) {
+          // 既存の見積が見つかった場合：裏数字のみを上書き更新
+          const updatedRow = { ...match };
+          updatedRow['ＲＮＢ'] = item['ＲＮＢ'] || match['ＲＮＢ'] || '';
+          updatedRow['ＩＴＶ'] = item['ＩＴＶ'] || match['ＩＴＶ'] || '';
+          updatedRow['ＥＢＣ'] = item['ＥＢＣ'] || match['ＥＢＣ'] || '';
+          updatedRow['ｅａｔ'] = item['ｅａｔ'] || match['ｅａｔ'] || '';
+          
+          await updateSheetRow(targetSheet, match.rowIndex, updatedRow);
+        } else {
+          // 見つからなかった場合は新規追加
+          await appendSheetData(targetSheet, item);
+        }
+      }
+    }
 
     const rowCount = Array.isArray(parsedData.data) ? parsedData.data.length : 1;
 
