@@ -126,6 +126,7 @@ CRITICAL RULES:
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
+  const startTime = Date.now();
   let retries = 1; // Retry exactly once for 503/429 errors to avoid Vercel timeouts
   let lastError = null;
 
@@ -162,6 +163,11 @@ CRITICAL RULES:
       
       // If it's a 503 (High Demand) or 429 (Rate Limit), and we have retries left, wait and retry
       if (retries > 0 && error.message && (error.message.includes('503') || error.message.includes('429'))) {
+        const elapsed = Date.now() - startTime;
+        if (elapsed > 40000) {
+          console.log(`API overloaded but \${elapsed}ms elapsed. Aborting retry to prevent 60s timeout.`);
+          throw error;
+        }
         console.log(\`API overloaded (503/429). Retrying in 5 seconds... (\${retries} retries left)\`);
         await new Promise(resolve => setTimeout(resolve, 5000));
         retries--;
