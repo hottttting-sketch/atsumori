@@ -23,8 +23,10 @@
 
 ## 3.5 MakeからGmail (GAS) への移行とテスト
 Make.comの動作不安定を解消するため、専用GmailアカウントとGASを用いた直接転送に切り替える。
-- [x] 熱盛用のGmailアカウントにGASの転送スクリプト（`forwardToVercelWebhook`）を配置する
-- [x] スマホ等から添付ファイル付きのテストメールを送信し、VercelのWebhookが正常にデータを受け取って処理するかテストする
+- [x] Webhook受信用エンドポイントの作成（Next.js `/api/webhooks/inbound-email`）
+- [x] AI（Gemini）を用いたメール本文・添付ファイルのパース処理（`aiParser.ts`）
+- [x] Googleスプレッドシートへの書き込み処理（`googleSheets.ts`）
+- [x] Google Drive監視用エンドポイントの作成（Next.js `/api/webhooks/google-drive`）
 - [x] 問題なくスプレッドシートに書き込まれることを確認したら、GASで1分間隔の定期実行トリガーを設定する
 
 ## 4. UI・ロジックのブラッシュアップ（いつでも対応可能！）
