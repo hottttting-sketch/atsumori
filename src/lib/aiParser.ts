@@ -36,7 +36,7 @@ Return a JSON object with the following schema:
       "ターゲット": "string",
       "種類": "string",
       "内容": "string",
-      "回答": "string",
+      "回答": "string (Extract '回答コスト' (or cost), 'INDEX', and 'サービス' from the document and combine them into this single string. e.g., 'コスト:〇〇, INDEX:〇〇, サービス:〇〇')",
       "回答〆切": "string",
       "社内担当": "string",
       "確度": "string (e.g. 確度A, 確度B, 確度C)",
