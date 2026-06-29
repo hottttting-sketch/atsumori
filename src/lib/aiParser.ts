@@ -28,7 +28,7 @@ Return a JSON object with the following schema:
       "代理店": "string",
       "広告主": "string",
       "契約名": "string",
-      "開始月": "string (YYYY年MM月, e.g. 2024年04月)",
+      "開始月": "string (YYYY年M月 or YYYY年MM月. DO NOT use zero-padding for months 1-9. e.g. 2024年4月)",
       "開始日": "string (YYYY/MM/DD)",
       "終了日": "string (YYYY/MM/DD)",
       "業推": "string",
@@ -57,7 +57,7 @@ For EACH object you extract, you MUST fill the "ソースファイル名" field 
 When extracting "代理店" (Agency Name) and determining "targetSheet", you MUST ONLY look at the text between "--- START OF FILE: [ソースファイル名] ---" and "--- END OF FILE: [ソースファイル名] ---". If the agency name is not found in that specific section, you MUST set "代理店" to "" and "targetSheet" to "アザー見積". NEVER copy the agency from the Email Body or a different file!
 
 CRITICAL RULES:
-1. MULTIPLE MONTHS: If the estimate or project spans multiple months, split it into multiple objects within the "data" array (one object per month). For each split row, increment the "開始月" (Start Month) sequentially using the YYYY年MM月 format (e.g., 2024年04月, 2024年05月, 2024年06月).
+1. MULTIPLE MONTHS: If the estimate or project spans multiple months, split it into multiple objects within the "data" array (one object per month). For each split row, increment the "開始月" (Start Month) sequentially (e.g., 2024年4月, 2024年5月... 2024年10月). DO NOT use zero-padding for months 1-9.
 2. BACK-END FIGURES (裏数字): Columns ＲＮＢ, ＩＴＶ, ＥＢＣ, and ｅａｔ must ONLY be filled if the email contains actual back-end figures or revenue numbers. If it is a normal estimate email without back-end figures, leave these 4 fields completely empty "".
 3. MANUAL ENTRY FIELDS: Columns 社内担当, 確度, and メモ will be entered manually by the user. You MUST ALWAYS leave these 3 fields as completely empty strings "", regardless of the email content.
 4. AGENCY NAME (代理店) & TARGET SHEET: You MUST extract the advertising agency (e.g., 電通, 博報堂, etc.) for EACH file independently. If a file does not explicitly contain the agency name, DO NOT copy the agency name from a different file. If you cannot confidently determine the agency for a specific file, leave "代理店" blank "" and set "targetSheet" to "アザー見積" (Other). If it's Dentsu, targetSheet is "電通見積". If Hakuhodo, "博報堂見積".
